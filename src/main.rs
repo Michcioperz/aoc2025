@@ -21,46 +21,61 @@ fn main() -> Result<()> {
 
 fn task6b() -> Result<usize> {
     let input = include_str!("/Users/michcioperz/Downloads/6.input");
-    let mut cols = vec![vec![]; input.lines().next().unwrap().len()];
-    for l in input.lines() {
-        for (col, c) in cols.iter_mut().zip(l.chars()) {
-            col.push(c);
-        }
-    }
-    let mut group_i = 0;
-    Ok(cols
-        .into_iter()
-        .into_grouping_map_by(|v| {
-            if v.iter().copied().all(char::is_whitespace) {
-                group_i += 1
-            }
-            group_i
-        })
-        .aggregate(|acc, _, mut v| match acc {
-            acc if v.iter().copied().all(char::is_whitespace) => acc,
-            None => {
-                let is_mul = v.pop().unwrap() == '*';
-                let x = v
-                    .into_iter()
-                    .filter(char::is_ascii_digit)
-                    .collect::<String>()
-                    .parse::<usize>()
-                    .unwrap();
-                Some((is_mul, x))
-            }
-            Some((is_mul, y)) => {
-                let x = v
-                    .into_iter()
-                    .filter(char::is_ascii_digit)
-                    .collect::<String>()
-                    .parse::<usize>()
-                    .unwrap();
-                Some((is_mul, if is_mul { y * x } else { y + x }))
+    Ok(input
+        .lines()
+        .fold(None, |acc: Option<Vec<Vec<char>>>, line| {
+            if let Some(mut acc) = acc {
+                for (v, c) in acc.iter_mut().zip(line.chars()) {
+                    v.push(c);
+                }
+                Some(acc)
+            } else {
+                Some(line.chars().map(|c| vec![c]).collect_vec())
             }
         })
+        .unwrap()
         .into_iter()
-        .map(|(_, (_, x))| x)
-        .sum())
+        .chain(vec![vec![]])
+        .fold(
+            (0usize, None),
+            |(total, local): (usize, Option<(fn(usize, usize) -> usize, usize)>), mut col| match (
+                local,
+                col.iter().any(|c| !c.is_whitespace()),
+            ) {
+                (Some((op, elem)), true) => (
+                    total,
+                    Some((
+                        op,
+                        op(
+                            elem,
+                            col.into_iter()
+                                .filter(|c| c.is_digit(10))
+                                .collect::<String>()
+                                .parse::<usize>()
+                                .unwrap(),
+                        ),
+                    )),
+                ),
+                (None, true) => (
+                    total,
+                    Some((
+                        if col.pop().unwrap() == '*' {
+                            |a, b| a * b
+                        } else {
+                            |a, b| a + b
+                        },
+                        col.into_iter()
+                            .filter(|c| c.is_digit(10))
+                            .collect::<String>()
+                            .parse::<usize>()
+                            .unwrap(),
+                    )),
+                ),
+                (Some((_, elem)), false) => (total + elem, None),
+                (None, false) => (total, None),
+            },
+        )
+        .0)
 }
 
 fn task5b() -> Result<usize> {
