@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use color_eyre::Result;
 use itertools::Itertools;
@@ -15,8 +15,74 @@ macro_rules! time_is_a_force {
 
 fn main() -> Result<()> {
     color_eyre::install().unwrap();
-    println!("{}", time_is_a_force!(task6b()?));
+    println!("{}", time_is_a_force!(task7b()?));
     Ok(())
+}
+
+fn task7b() -> Result<usize> {
+    let mut input = include_str!("/Users/michcioperz/Downloads/7.input")
+        .lines()
+        .map(|it| it.chars().collect_vec());
+    let mut beams: HashMap<usize, usize> = vec![(
+        input
+            .next()
+            .unwrap()
+            .into_iter()
+            .find_position(|&c| c == 'S')
+            .unwrap()
+            .0,
+        1,
+    )]
+    .into_iter()
+    .collect();
+    let mut map = input.collect_vec();
+    for line in &mut map {
+        beams = beams
+            .into_iter()
+            .flat_map(|(beam, count)| {
+                if line[beam] == '^' {
+                    vec![(beam.wrapping_sub(1), count), (beam.wrapping_add(1), count)]
+                } else {
+                    vec![(beam, count)]
+                }
+            })
+            .filter(|(x, _)| (0..line.len()).contains(x))
+            .into_grouping_map().sum();
+    }
+    Ok(beams.into_values().sum())
+}
+
+fn task7a() -> Result<usize> {
+    let mut input = include_str!("/Users/michcioperz/Downloads/7.input")
+        .lines()
+        .map(|it| it.chars().collect_vec());
+    let mut beams = vec![
+        input
+            .next()
+            .unwrap()
+            .into_iter()
+            .find_position(|&c| c == 'S')
+            .unwrap()
+            .0,
+    ];
+    let mut map = input.collect_vec();
+    let mut splits = 0usize;
+    for line in &mut map {
+        beams = beams
+            .into_iter()
+            .flat_map(|beam| {
+                if line[beam] == '^' {
+                    splits += 1;
+                    vec![beam.wrapping_sub(1), beam.wrapping_add(1)]
+                } else {
+                    vec![beam]
+                }
+            })
+            .filter(|x| (0..line.len()).contains(x))
+            .dedup()
+            .collect_vec();
+    }
+    Ok(splits)
 }
 
 fn task6b() -> Result<usize> {
