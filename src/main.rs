@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+};
 
 use color_eyre::Result;
 use itertools::Itertools;
@@ -13,10 +16,263 @@ macro_rules! time_is_a_force {
     }};
 }
 
+macro_rules! edbg {
+    ($e:expr) => {{
+        let res = $e;
+        eprintln!("{:?}", &res);
+        res
+    }};
+}
+
 fn main() -> Result<()> {
     color_eyre::install().unwrap();
-    println!("{}", time_is_a_force!(task7b()?));
+    println!("{}", time_is_a_force!(task9b()?));
     Ok(())
+}
+
+fn task9b() -> Result<usize> {
+    let input = if true {
+        include_str!("/Users/michcioperz/Downloads/9.input")
+    } else {
+        r#"7,1
+11,1
+11,7
+9,7
+9,5
+2,5
+2,3
+7,3"#
+    };
+    let reds = input
+        .trim()
+        .lines()
+        .map(|x| {
+            x.split_once(',')
+                .map(|(a, b)| (a.parse::<usize>().unwrap(), b.parse::<usize>().unwrap()))
+                .unwrap()
+        })
+        .collect_vec();
+    let mut good_tiles: HashSet<_> = reds.iter().cloned().collect();
+    for green in reds
+        .iter()
+        .cloned()
+        .circular_tuple_windows()
+        .flat_map(|(x, y)| {
+            (x.0.min(y.0)..=x.0.max(y.0)).cartesian_product(x.1.min(y.1)..=x.1.max(y.1))
+        })
+    {
+        good_tiles.insert(green);
+    }
+    fn on_off_vector(sorted_greens: impl Iterator<Item = usize>) -> Vec<(usize, bool)> {
+        let mut last_good = None;
+        let mut res = sorted_greens.fold(vec![], |mut acc, z| {
+            last_good = Some(z);
+            match acc.last() {
+                None => {
+                    acc.push((z, true));
+                }
+                Some(&(q, false)) => {
+                    if q == z {
+                        acc.pop();
+                    } else {
+                        acc.push((z, true));
+                    }
+                }
+                Some(&(_, true)) => {
+                    acc.push((z + 1, false));
+                }
+            }
+            acc
+        });
+        if res.last().unwrap().1 {
+            res.push((last_good.unwrap() + 1, false));
+        }
+        res
+    }
+    let rows: HashMap<_, _> = good_tiles
+        .iter()
+        .cloned()
+        .into_group_map_by(|z| z.0)
+        .into_iter()
+        .map(|(k, mut v)| {
+            v.sort();
+            (k, on_off_vector(v.into_iter().map(|z| z.1)))
+        })
+        .collect();
+    let cols: HashMap<_, _> = good_tiles
+        .iter()
+        .cloned()
+        .into_group_map_by(|z| z.1)
+        .into_iter()
+        .map(|(k, mut v)| {
+            v.sort();
+            (k, on_off_vector(v.into_iter().map(|z| z.0)))
+        })
+        .collect();
+    Ok(reds
+        .iter()
+        .tuple_combinations()
+        .filter(|&(x, y)| {
+            let xmin = x.0.min(y.0);
+            let xmax = x.0.max(y.0);
+            let ymin = x.1.min(y.1);
+            let ymax = x.1.max(y.1);
+            fn subsolve(row: Option<&Vec<(usize, bool)>>, a: usize, b: usize) -> bool {
+                let Some(row) = row else { return false };
+                for &(q, on) in row {
+                    match (q.cmp(&a), q.cmp(&b), on) {
+                        (Ordering::Less, _, _) => continue,
+                        (Ordering::Equal, _, false) => return false,
+                        (Ordering::Equal, _, true) => continue,
+                        (Ordering::Greater, Ordering::Less | Ordering::Equal, _) => return false,
+                        (Ordering::Greater, Ordering::Greater, false) => return true,
+                        (Ordering::Greater, Ordering::Greater, true) => return false,
+                    }
+                }
+                false
+            }
+            ([
+                (rows.get(&xmin), ymin, ymax),
+                (rows.get(&xmax), ymin, ymax),
+                (cols.get(&ymin), xmin, xmax),
+                (cols.get(&ymax), xmin, xmax),
+            ])
+            .into_iter()
+            .all(|(r, a, b)| subsolve(r, a, b))
+            // (ymin..=ymax)
+            //     .flat_map(|y| [(xmin, y), (xmax, y)])
+            //     .chain((xmin..=xmax).flat_map(|x| [(x, ymin), (x, ymax)]))
+            //     .all(|z| good_tiles.contains(&z))
+        })
+        .map(|(x, y)| x.0.abs_diff(y.0).saturating_add(1) * x.1.abs_diff(y.1).saturating_add(1))
+        .max()
+        .unwrap())
+}
+
+fn task9a() -> Result<usize> {
+    let input = if true {
+        include_str!("/Users/michcioperz/Downloads/9.input")
+    } else {
+        r#"7,1
+11,1
+11,7
+9,7
+9,5
+2,5
+2,3
+7,3"#
+    };
+    Ok(input
+        .trim()
+        .lines()
+        .map(|x| {
+            x.split_once(',')
+                .map(|(a, b)| (a.parse::<usize>().unwrap(), b.parse::<usize>().unwrap()))
+                .unwrap()
+        })
+        .tuple_combinations()
+        .map(|(x, y)| x.0.abs_diff(y.0).saturating_add(1) * x.1.abs_diff(y.1).saturating_add(1))
+        .max()
+        .unwrap())
+}
+
+fn task8b() -> Result<usize> {
+    let input: Vec<(usize, usize, usize)> = include_str!("/Users/michcioperz/Downloads/8.input")
+        .lines()
+        .map(|it| {
+            it.split(',')
+                .map(|x| x.parse::<usize>().unwrap())
+                .collect_tuple()
+                .unwrap()
+        })
+        .collect();
+    fn dist(x: (usize, usize, usize), y: (usize, usize, usize)) -> usize {
+        x.0.abs_diff(y.0).pow(2) + x.1.abs_diff(y.1).pow(2) + x.2.abs_diff(y.2).pow(2)
+    }
+    let mut cords: HashMap<usize, HashSet<usize>> = HashMap::new();
+    let (a, b) = (0..input.len())
+        .tuple_combinations::<(_, _)>()
+        .sorted_by_key(|&(a, b)| dist(input[a], input[b]))
+        .inspect({
+            let mut i = 0;
+            move |v| {
+                eprintln!("{i} {v:?}");
+                i += 1;
+            }
+        })
+        .take_while_inclusive(|&(a, b)| {
+            cords.entry(a).or_default().insert(b);
+            cords.entry(b).or_default().insert(a);
+            let mut q = vec![0];
+            let mut count = 0;
+            let mut visited = vec![false; input.len()];
+            while let Some(j) = q.pop() {
+                if !visited[j] {
+                    if let Some(conns) = cords.get(&j) {
+                        for &conn in conns {
+                            if !visited[conn] {
+                                q.push(conn);
+                            }
+                        }
+                    }
+                    visited[j] = true;
+                    count += 1;
+                }
+            }
+            count != input.len()
+        })
+        .last()
+        .unwrap();
+    Ok(input[a].0 * input[b].0)
+}
+
+fn task8a() -> Result<usize> {
+    let input: Vec<(usize, usize, usize)> = include_str!("/Users/michcioperz/Downloads/8.input")
+        .lines()
+        .map(|it| {
+            it.split(',')
+                .map(|x| x.parse::<usize>().unwrap())
+                .collect_tuple()
+                .unwrap()
+        })
+        .collect();
+    fn dist(x: (usize, usize, usize), y: (usize, usize, usize)) -> usize {
+        x.0.abs_diff(y.0).pow(2) + x.1.abs_diff(y.1).pow(2) + x.2.abs_diff(y.2).pow(2)
+    }
+    let cords: HashMap<usize, HashSet<usize>> = (0..input.len())
+        .tuple_combinations::<(_, _)>()
+        .sorted_by_key(|&(a, b)| dist(input[a], input[b]))
+        .take(1000)
+        .flat_map(|x| [x, (x.1, x.0)])
+        .into_grouping_map()
+        .collect();
+    let mut visited = vec![false; input.len()];
+    Ok((0..input.len())
+        .filter_map(|i| {
+            if visited[i] {
+                return None;
+            }
+            let mut q = vec![i];
+            let mut count = 0;
+            while let Some(j) = q.pop() {
+                if !visited[j] {
+                    if let Some(conns) = cords.get(&j) {
+                        for &conn in conns {
+                            if !visited[conn] {
+                                q.push(conn);
+                            }
+                        }
+                    }
+                    visited[j] = true;
+                    count += 1;
+                }
+            }
+            Some(count)
+        })
+        .sorted()
+        .rev()
+        .take(3)
+        .product())
 }
 
 fn task7b() -> Result<usize> {
@@ -47,7 +303,8 @@ fn task7b() -> Result<usize> {
                 }
             })
             .filter(|(x, _)| (0..line.len()).contains(x))
-            .into_grouping_map().sum();
+            .into_grouping_map()
+            .sum();
     }
     Ok(beams.into_values().sum())
 }
