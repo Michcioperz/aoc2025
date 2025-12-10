@@ -9,3 +9,4 @@ fs-err = "3.2.0"
 indicatif = { version = "0.18.3", features = ["improved_unicode", "rayon"] }
 itertools = "0.14.0"
 rayon = "1.11.0"
+z3 = "0.19.5"

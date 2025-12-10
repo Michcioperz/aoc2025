@@ -7,6 +7,7 @@ use color_eyre::Result;
 use indicatif::ProgressIterator;
 use itertools::Itertools;
 use rayon::prelude::*;
+use z3::{Solver, ast::Int};
 
 macro_rules! time_is_a_force {
     ($e:expr) => {{
@@ -27,8 +28,56 @@ macro_rules! edbg {
 
 fn main() -> Result<()> {
     color_eyre::install().unwrap();
-    println!("{}", time_is_a_force!(task10b()?));
+    println!("{}", time_is_a_force!(task11b()?));
     Ok(())
+}
+
+fn task11b() -> Result<usize> {
+    let input = if true {
+        include_str!("/Users/michcioperz/Downloads/11.input")
+    } else {
+        todo!()
+    };
+    let map: HashMap<&str, Vec<&str>> = input
+        .lines()
+        .map(|line| line.split_once(": ").unwrap())
+        .map(|(k, v)| (k, v.split_whitespace().collect_vec()))
+        .collect();
+    fn dfs(map: &HashMap<&str, Vec<&str>>, node: &str, dac: bool, fft: bool) -> usize {
+        map.get(node)
+            .unwrap()
+            .iter()
+            .map(|&conn| {
+                if conn == "out" {
+                    if dac && fft { 1 } else { 0 }
+                } else {
+                    dfs(map, node, dac || node == "dac", fft || node == "fft")
+                }
+            })
+            .sum()
+    }
+    Ok(dfs(&map, "svr", false, false))
+}
+
+fn task11a() -> Result<usize> {
+    let input = if true {
+        include_str!("/Users/michcioperz/Downloads/11.input")
+    } else {
+        todo!()
+    };
+    let map: HashMap<&str, Vec<&str>> = input
+        .lines()
+        .map(|line| line.split_once(": ").unwrap())
+        .map(|(k, v)| (k, v.split_whitespace().collect_vec()))
+        .collect();
+    fn dfs(map: &HashMap<&str, Vec<&str>>, node: &str) -> usize {
+        map.get(node)
+            .unwrap()
+            .iter()
+            .map(|&conn| if conn == "out" { 1 } else { dfs(map, conn) })
+            .sum()
+    }
+    Ok(dfs(&map, "you"))
 }
 
 fn task10b() -> Result<usize> {
@@ -59,70 +108,34 @@ fn task10b() -> Result<usize> {
             )
         })
         .map(|(goal, toggles)| {
-            let mut states = HashSet::new();
-            states.insert(vec![0; goal.len()]);
-            let mut banned_subgoals = HashSet::new();
-            for (i, subgoal) in goal
+            let solver = Solver::new();
+            let pushes = toggles
                 .iter()
-                .cloned()
+                .map(|_| {
+                    let var = Int::fresh_const("button");
+                    solver.assert(var.ge(0));
+                    var
+                })
+                .collect_vec();
+            toggles
+                .iter()
                 .enumerate()
-                .sorted_by_key(|&(_, subgoal)| subgoal)
-            {
-                dbg!(i, states.len());
-                let subtoggles = toggles
-                    .iter()
-                    .filter(|toggle| {
-                        toggle.contains(&i) && !toggle.iter().any(|x| banned_subgoals.contains(x))
-                    })
-                    .collect_vec();
-                // dbg!(&subtoggles);
-                if !subtoggles.is_empty() {
-                    states = states
-                        .into_iter()
-                        .flat_map(|ini| {
-                            (0..=subgoal - ini[i])
-                                .combinations_with_replacement(
-                                    subtoggles.len().checked_sub(1).unwrap(),
-                                )
-                                .filter_map({
-                                    let goal = goal.clone();
-                                    let subtoggles = subtoggles.clone();
-                                    move |borderset| {
-                                        let mut new = ini.clone();
-                                        for (repeats, toggle) in [0]
-                                            .into_iter()
-                                            .chain(borderset.into_iter())
-                                            .chain([subgoal - ini[i]].into_iter())
-                                            .tuple_windows()
-                                            .map(|(a, b)| b - a)
-                                            .zip(subtoggles.iter())
-                                        {
-                                            for &t in toggle.iter() {
-                                                *new.get_mut(t).unwrap() += repeats;
-                                                if new[t] > goal[t] {
-                                                    return None;
-                                                }
-                                            }
-                                        }
-                                        assert_eq!(new[i], subgoal);
-                                        Some(new)
-                                    }
-                                })
-                        })
-                        .filter(|state| {
-                            state.iter().zip(goal.iter()).all(|(got, want)| got <= want)
-                        })
-                        .collect();
-                } else {
-                    states.retain(|state| {
-                        state.iter().zip(goal.iter()).all(|(got, want)| got <= want)
-                    })
-                }
-                banned_subgoals.insert(i);
-            }
-            states
+                .flat_map(|(i, button)| button.iter().cloned().map(move |var| (var, i)))
+                .into_group_map()
                 .into_iter()
-                .map(|s| s.into_iter().sum::<usize>())
+                .for_each(|(var, buttons)| {
+                    solver.assert(
+                        buttons
+                            .into_iter()
+                            .map(|a| pushes[a].clone())
+                            .reduce(|a, b| (a + b))
+                            .unwrap()
+                            .eq(u64::try_from(goal[var]).unwrap()),
+                    );
+                });
+            solver
+                .into_solutions(pushes.into_iter().reduce(|a, b| a + b).unwrap(), false)
+                .map(|s| usize::try_from(s.as_u64().unwrap()).unwrap())
                 .min()
                 .unwrap()
         })
