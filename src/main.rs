@@ -76,38 +76,48 @@ fn task10b() -> Result<usize> {
                     })
                     .collect_vec();
                 // dbg!(&subtoggles);
-                states = states
-                    .into_iter()
-                    .flat_map(|ini| {
-                        (0..=subgoal - ini[i])
-                            .combinations_with_replacement(subtoggles.len() - 1)
-                            .filter_map({
-                                let goal = goal.clone();
-                                let subtoggles = subtoggles.clone();
-                                move |borderset| {
-                                    let mut new = ini.clone();
-                                    for (repeats, toggle) in [0]
-                                        .into_iter()
-                                        .chain(borderset.into_iter())
-                                        .chain([subgoal - ini[i]].into_iter())
-                                        .tuple_windows()
-                                        .map(|(a, b)| b - a)
-                                        .zip(subtoggles.iter())
-                                    {
-                                        for &t in toggle.iter() {
-                                            *new.get_mut(t).unwrap() += repeats;
-                                            if new[t] > goal[t] {
-                                                return None;
+                if !subtoggles.is_empty() {
+                    states = states
+                        .into_iter()
+                        .flat_map(|ini| {
+                            (0..=subgoal - ini[i])
+                                .combinations_with_replacement(
+                                    subtoggles.len().checked_sub(1).unwrap(),
+                                )
+                                .filter_map({
+                                    let goal = goal.clone();
+                                    let subtoggles = subtoggles.clone();
+                                    move |borderset| {
+                                        let mut new = ini.clone();
+                                        for (repeats, toggle) in [0]
+                                            .into_iter()
+                                            .chain(borderset.into_iter())
+                                            .chain([subgoal - ini[i]].into_iter())
+                                            .tuple_windows()
+                                            .map(|(a, b)| b - a)
+                                            .zip(subtoggles.iter())
+                                        {
+                                            for &t in toggle.iter() {
+                                                *new.get_mut(t).unwrap() += repeats;
+                                                if new[t] > goal[t] {
+                                                    return None;
+                                                }
                                             }
                                         }
+                                        assert_eq!(new[i], subgoal);
+                                        Some(new)
                                     }
-                                    assert_eq!(new[i], subgoal);
-                                    Some(new)
-                                }
-                            })
+                                })
+                        })
+                        .filter(|state| {
+                            state.iter().zip(goal.iter()).all(|(got, want)| got <= want)
+                        })
+                        .collect();
+                } else {
+                    states.retain(|state| {
+                        state.iter().zip(goal.iter()).all(|(got, want)| got <= want)
                     })
-                    .filter(|state| state.iter().zip(goal.iter()).all(|(got, want)| got <= want))
-                    .collect();
+                }
                 banned_subgoals.insert(i);
             }
             states
