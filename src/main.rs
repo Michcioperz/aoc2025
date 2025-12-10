@@ -62,27 +62,48 @@ fn task10b() -> Result<usize> {
             let mut states = HashSet::new();
             states.insert(vec![0; goal.len()]);
             let mut banned_subgoals = HashSet::new();
-            for (i, subgoal) in goal.iter().cloned().enumerate().sorted_by_key(|&(_, subgoal)| subgoal) {
+            for (i, subgoal) in goal
+                .iter()
+                .cloned()
+                .enumerate()
+                .sorted_by_key(|&(_, subgoal)| subgoal)
+            {
                 dbg!(i, states.len());
                 let subtoggles = toggles
                     .iter()
-                    .filter(|toggle| toggle.contains(&i) && !toggle.iter().any(|x| banned_subgoals.contains(x)))
+                    .filter(|toggle| {
+                        toggle.contains(&i) && !toggle.iter().any(|x| banned_subgoals.contains(x))
+                    })
                     .collect_vec();
                 // dbg!(&subtoggles);
                 states = states
                     .into_iter()
                     .flat_map(|ini| {
-                        subtoggles
-                            .iter()
-                            .combinations_with_replacement(subgoal-ini[i])
-                            .map(move |toggleset| {
-                                let mut new = ini.clone();
-                                for (repeats, toggle) in toggleset.iter().dedup_with_count() {
-                                    for &t in toggle.iter() {
-                                        *new.get_mut(t).unwrap() += repeats;
+                        (0..=subgoal - ini[i])
+                            .combinations_with_replacement(subtoggles.len() - 1)
+                            .filter_map({
+                                let goal = goal.clone();
+                                let subtoggles = subtoggles.clone();
+                                move |borderset| {
+                                    let mut new = ini.clone();
+                                    for (repeats, toggle) in [0]
+                                        .into_iter()
+                                        .chain(borderset.into_iter())
+                                        .chain([subgoal - ini[i]].into_iter())
+                                        .tuple_windows()
+                                        .map(|(a, b)| b - a)
+                                        .zip(subtoggles.iter())
+                                    {
+                                        for &t in toggle.iter() {
+                                            *new.get_mut(t).unwrap() += repeats;
+                                            if new[t] > goal[t] {
+                                                return None;
+                                            }
+                                        }
                                     }
+                                    assert_eq!(new[i], subgoal);
+                                    Some(new)
                                 }
-                                new
                             })
                     })
                     .filter(|state| state.iter().zip(goal.iter()).all(|(got, want)| got <= want))
