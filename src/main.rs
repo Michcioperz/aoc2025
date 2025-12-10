@@ -26,8 +26,56 @@ macro_rules! edbg {
 
 fn main() -> Result<()> {
     color_eyre::install().unwrap();
-    println!("{}", time_is_a_force!(task9b()?));
+    println!("{}", time_is_a_force!(task10a()?));
     Ok(())
+}
+
+fn task10a() -> Result<usize> {
+    let input = if true {
+        include_str!("/Users/michcioperz/Downloads/10.input")
+    } else {
+        todo!()
+    };
+    Ok(input
+        .lines()
+        .map(|line| line.split_once(' ').unwrap())
+        .map(|(goal, toggles)| {
+            (
+                goal.len() - 2,
+                goal.trim_matches(['[', ']'])
+                    .chars()
+                    .map(|c| c == '#')
+                    .enumerate()
+                    .map(|(i, b)| usize::from(b) << i)
+                    .sum(),
+                toggles
+                    .split_whitespace()
+                    .take_while(|x| x.starts_with('('))
+                    .map(|toggle| {
+                        toggle
+                            .trim_matches(['(', ')'])
+                            .split(',')
+                            .map(|x| 1 << x.parse::<usize>().unwrap())
+                            .sum()
+                    })
+                    .collect_vec(),
+            )
+        })
+        .map(|(n, goal, toggles)| {
+            let mask = (1 << n) - 1;
+            let mut states = HashSet::new();
+            states.insert(0);
+            let mut steps = 0;
+            while !states.contains(&goal) {
+                steps += 1;
+                states = states
+                    .into_iter()
+                    .flat_map(|ini| toggles.iter().map(move |toggle| (ini ^ toggle) & mask))
+                    .collect();
+            }
+            steps
+        })
+        .sum())
 }
 
 fn task9b() -> Result<usize> {
