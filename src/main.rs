@@ -4,6 +4,7 @@ use std::{
 };
 
 use color_eyre::Result;
+use indicatif::ProgressIterator;
 use itertools::Itertools;
 use rayon::prelude::*;
 
@@ -26,8 +27,62 @@ macro_rules! edbg {
 
 fn main() -> Result<()> {
     color_eyre::install().unwrap();
-    println!("{}", time_is_a_force!(task10a()?));
+    println!("{}", time_is_a_force!(task10b()?));
     Ok(())
+}
+
+fn task10b() -> Result<usize> {
+    let input = if true {
+        include_str!("/Users/michcioperz/Downloads/10.input")
+    } else {
+        todo!()
+    };
+    Ok(input
+        .lines()
+        .map(|line| line.split_once(' ').unwrap().1.rsplit_once(' ').unwrap())
+        .map(|(toggles, goal)| {
+            (
+                goal.trim_matches(['{', '}'])
+                    .split(',')
+                    .map(|x| x.parse::<usize>().unwrap())
+                    .collect_vec(),
+                toggles
+                    .split_whitespace()
+                    .map(|toggle| {
+                        toggle
+                            .trim_matches(['(', ')'])
+                            .split(',')
+                            .map(|x| x.parse::<usize>().unwrap())
+                            .collect_vec()
+                    })
+                    .collect_vec(),
+            )
+        })
+        .map(|(goal, toggles)| {
+            let mut states = HashSet::new();
+            states.insert(vec![0; goal.len()]);
+            let mut steps = 0;
+            while !states.contains(&goal) {
+                steps += 1;
+                dbg!(steps, states.len());
+                states = states
+                    .into_iter()
+                    .flat_map(|ini| {
+                        toggles.iter().map(move |toggle| {
+                            let mut new = ini.clone();
+                            for &t in toggle {
+                                *new.get_mut(t).unwrap() += 1;
+                            }
+                            new
+                        })
+                    })
+                    .filter(|state| state.iter().zip(goal.iter()).all(|(got, want)| got <= want))
+                    .collect();
+            }
+            steps
+        })
+        .progress_count(172)
+        .sum())
 }
 
 fn task10a() -> Result<usize> {
