@@ -61,25 +61,39 @@ fn task10b() -> Result<usize> {
         .map(|(goal, toggles)| {
             let mut states = HashSet::new();
             states.insert(vec![0; goal.len()]);
-            let mut steps = 0;
-            while !states.contains(&goal) {
-                steps += 1;
-                dbg!(steps, states.len());
+            let mut banned_subgoals = HashSet::new();
+            for (i, subgoal) in goal.iter().cloned().enumerate().sorted_by_key(|&(_, subgoal)| subgoal) {
+                dbg!(i, states.len());
+                let subtoggles = toggles
+                    .iter()
+                    .filter(|toggle| toggle.contains(&i) && !toggle.iter().any(|x| banned_subgoals.contains(x)))
+                    .collect_vec();
+                // dbg!(&subtoggles);
                 states = states
                     .into_iter()
                     .flat_map(|ini| {
-                        toggles.iter().map(move |toggle| {
-                            let mut new = ini.clone();
-                            for &t in toggle {
-                                *new.get_mut(t).unwrap() += 1;
-                            }
-                            new
-                        })
+                        subtoggles
+                            .iter()
+                            .combinations_with_replacement(subgoal-ini[i])
+                            .map(move |toggleset| {
+                                let mut new = ini.clone();
+                                for (repeats, toggle) in toggleset.iter().dedup_with_count() {
+                                    for &t in toggle.iter() {
+                                        *new.get_mut(t).unwrap() += repeats;
+                                    }
+                                }
+                                new
+                            })
                     })
                     .filter(|state| state.iter().zip(goal.iter()).all(|(got, want)| got <= want))
                     .collect();
+                banned_subgoals.insert(i);
             }
-            steps
+            states
+                .into_iter()
+                .map(|s| s.into_iter().sum::<usize>())
+                .min()
+                .unwrap()
         })
         .progress_count(172)
         .sum())
